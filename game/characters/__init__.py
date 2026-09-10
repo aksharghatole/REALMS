@@ -1,0 +1,1 @@
+"""Character and relationship domain package."""

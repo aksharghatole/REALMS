@@ -1,0 +1,1 @@
+INITIAL_ACHIEVEMENTS = (("first_breath", "First Breath", "Begin a life", "Life"), ("quiet_life", "Quiet Life", "Work an honest profession", "Life"), ("first_breakthrough", "First Breakthrough", "Advance your cultivation", "Cultivation"), ("legacy", "Legacy", "Leave a consequence behind", "Legacy"))

@@ -1,0 +1,1 @@
+"""Persistent events, memories, legends, and character legacy live in SQLite."""
