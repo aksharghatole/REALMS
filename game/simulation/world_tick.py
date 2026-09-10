@@ -5,9 +5,11 @@ from game.database.db import Database
 class WorldTick:
     """Advances world time and applies cheap scheduled simulation updates."""
 
-    def __init__(self, db: Database, seed: int = 184729):
+    def __init__(self, db: Database, seed: int = 184729, economic_step=None):
         self.db = db
         self.seed = seed
+        self.economic_step = economic_step
+        self.transport_step = None
 
     def advance(self, world_id: str, hours: int) -> GameDate:
         world = self.db.one("SELECT * FROM worlds WHERE world_id = ?", (world_id,))
@@ -25,4 +27,8 @@ class WorldTick:
             self.db.execute("UPDATE npcs SET routine = CASE WHEN ? BETWEEN 6 AND 11 THEN 'work' WHEN ? BETWEEN 12 AND 17 THEN 'work' WHEN ? BETWEEN 18 AND 21 THEN 'home' ELSE 'sleep' END WHERE world_id = ? AND alive = 1", (current.hour, current.hour, current.hour, world_id))
         if current.year > old.year:
             self.db.execute("UPDATE npcs SET age = age + 1 WHERE world_id = ? AND alive = 1", (world_id,))
+        if days_elapsed and self.economic_step is not None:
+            self.economic_step(world_id, days_elapsed)
+        if days_elapsed and self.transport_step is not None:
+            self.transport_step(world_id, days_elapsed)
         return current

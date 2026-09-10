@@ -7,16 +7,13 @@ from game.cultivation.dao import seed_dao_paths
 from game.cultivation.realms import REALMS, realm_name
 from game.cultivation.techniques import mastery_name, seed_techniques
 
+
 CULTIVATION_METHODS = {
-    "meditation": {"speed": 1.0, "risk": 0.2, "resource_requirements": {}, "environment_requirements": {"qi_density": 0}, "body_effect": 0.2, "soul_effect": 0.2, "foundation_effect": 0.3, "dao_compatibility": 1.0},
-    "breathing": {"speed": 1.15, "risk": 0.25, "resource_requirements": {}, "environment_requirements": {"qi_density": 0}, "body_effect": 0.3, "soul_effect": 0.1, "foundation_effect": 0.2, "dao_compatibility": 0.9},
-    "qi circulation": {"speed": 1.25, "risk": 0.35, "resource_requirements": {"spirit stones": 1}, "environment_requirements": {"qi_density": 1}, "body_effect": 0.2, "soul_effect": 0.15, "foundation_effect": 0.4, "dao_compatibility": 1.0},
-    "body training": {"speed": 1.1, "risk": 0.3, "resource_requirements": {}, "environment_requirements": {}, "body_effect": 0.8, "soul_effect": 0.05, "foundation_effect": 0.5, "dao_compatibility": 0.8},
-    "soul training": {"speed": 1.1, "risk": 0.4, "resource_requirements": {"soul crystals": 1}, "environment_requirements": {"dao_density": 1}, "body_effect": 0.1, "soul_effect": 0.9, "foundation_effect": 0.2, "dao_compatibility": 1.0},
-    "blood refinement": {"speed": 1.2, "risk": 0.45, "resource_requirements": {"blood essence": 1}, "environment_requirements": {}, "body_effect": 0.9, "soul_effect": 0.2, "foundation_effect": 0.6, "dao_compatibility": 0.7},
-    "dao meditation": {"speed": 1.15, "risk": 0.4, "resource_requirements": {"dao fragments": 1}, "environment_requirements": {"dao_density": 1}, "body_effect": 0.1, "soul_effect": 0.5, "foundation_effect": 0.25, "dao_compatibility": 1.2},
-    "combat cultivation": {"speed": 1.3, "risk": 0.5, "resource_requirements": {}, "environment_requirements": {}, "body_effect": 0.5, "soul_effect": 0.35, "foundation_effect": 0.3, "dao_compatibility": 0.9},
-    "dual cultivation": {"speed": 1.5, "risk": 0.6, "resource_requirements": {"spirit stones": 2}, "environment_requirements": {"qi_density": 2}, "body_effect": 0.7, "soul_effect": 0.7, "foundation_effect": 0.45, "dao_compatibility": 1.0},
+    "meditation": {"speed": 1, "risk": 2},
+    "absorb qi": {"speed": 2, "risk": 4},
+    "body training": {"speed": 1, "risk": 3},
+    "train soul": {"speed": 1, "risk": 3},
+    "study dao": {"speed": 1, "risk": 2},
 }
 
 
@@ -36,12 +33,6 @@ class CultivationEngine:
 
     def ensure(self, character_id: str) -> None:
         self.db.execute("INSERT OR IGNORE INTO cultivation_states (character_id) SELECT character_id FROM characters WHERE character_id = ?", (character_id,))
-        row = self.db.one("SELECT * FROM cultivation_states WHERE character_id = ?", (character_id,))
-        if row:
-            self.db.execute(
-                "UPDATE cultivation_states SET foundation_type = COALESCE(foundation_type, 'Mortal'), foundation_damage = COALESCE(foundation_damage, 0), foundation_stability = COALESCE(foundation_stability, 100), realm_name = COALESCE(realm_name, ?), tribulation_spotting_points = COALESCE(tribulation_spotting_points, tribulation_spotting), dao_intent = COALESCE(dao_intent, 0), dao_comprehension = COALESCE(dao_comprehension, 0) WHERE character_id = ?",
-                (REALMS[min(len(REALMS)-1, max(0, row["realm_id"]))], character_id),
-            )
         seed_dao_paths(self.db)
         seed_techniques(self.db)
         default = self.db.one("SELECT technique_id FROM techniques WHERE name = 'Breath of Still Water'")
@@ -57,17 +48,17 @@ class CultivationEngine:
         character = self.db.one("SELECT * FROM characters WHERE character_id = ?", (character_id,))
         location = self.db.one("SELECT * FROM locations WHERE location_id = ?", (character["location_id"],))
         density = {"village": 1, "city": 1, "sect": 3, "wilderness": 2}.get(location["kind"], 1) if location else 1
-        method_key = (method or "meditation").lower().strip()
-        method_config = CULTIVATION_METHODS.get(method_key, CULTIVATION_METHODS["meditation"])
-        progress = max(1, days // 10) * method_config["speed"] * density + state["cultivation_speed"]
-        risk = min(90, max(2, state["cultivation_deviation_risk"] + max(0, days - 60) // 10 - state["soul_stability"] // 20 + int(method_config["risk"] * 10)))
-        self.db.execute("UPDATE cultivation_states SET cultivation_progress = MIN(100, cultivation_progress + ?), preparation = MIN(100, preparation + ?), tribulation_pressure = MIN(100, tribulation_pressure + ?), body_strength = MIN(100, body_strength + ?), soul_strength = MIN(100, soul_strength + ?), foundation_quality = MIN(100, foundation_quality + ?), qi_control = MIN(100, qi_control + ?), dao_comprehension = MIN(100, dao_comprehension + ?) WHERE character_id = ?", (progress, max(1, days // 30), max(1, days // 60), int(method_config["body_effect"] * 10), int(method_config["soul_effect"] * 10), int(method_config["foundation_effect"] * 10), int(method_config["speed"] * 5), int(method_config["dao_compatibility"] * 3), character_id))
+        method_key = method.lower()
+        speed = {"meditation": 1, "absorb qi": 2, "body training": 1, "train body": 1, "train soul": 1, "study dao": 1}.get(method_key, 1)
+        progress = max(1, days // 10) * speed * density + state["cultivation_speed"]
+        risk = min(90, max(2, state["cultivation_deviation_risk"] + max(0, days - 60) // 10 - state["soul_stability"] // 20))
+        self.db.execute("UPDATE cultivation_states SET cultivation_progress = MIN(100, cultivation_progress + ?), preparation = MIN(100, preparation + ?), tribulation_pressure = MIN(100, tribulation_pressure + ?) WHERE character_id = ?", (progress, max(1, days // 30), max(1, days // 60), character_id))
         if method_key in {"train body", "body training"}:
             self.db.execute("UPDATE cultivation_states SET body_strength = MIN(100, body_strength + 2), body_tempering = MIN(100, body_tempering + 1) WHERE character_id = ?", (character_id,))
-        if method_key in {"train soul", "soul training"}:
+        if method_key == "train soul":
             self.db.execute("UPDATE cultivation_states SET soul_strength = MIN(100, soul_strength + 2), soul_stability = MIN(100, soul_stability + 1) WHERE character_id = ?", (character_id,))
-        text = f"You practice {method_key} for {days} days. Your progress deepens by {int(progress)}; the change is subtle but real."
-        return CultivationResult(text, int(progress), risk)
+        text = f"You practice {method_key} for {days} days. Your progress deepens by {progress}; the change is subtle but real."
+        return CultivationResult(text, progress, risk)
 
     def study_dao(self, character_id: str, dao_name: str = "Sword") -> str:
         self.ensure(character_id)

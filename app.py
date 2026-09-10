@@ -51,6 +51,13 @@ else:
         st.write(f"Age {character['age']} · {character['species']}")
         st.write(f"{character['profession']} · {date.text()}")
         st.write(f"{date.season} · {date.weather(engine.seed)}")
+        species = engine.species_for_character(character["character_id"])
+        bloodline = engine.bloodline_for_character(character["character_id"])
+        st.subheader("Life / Biology")
+        st.write(f"Species: {species['name']}")
+        st.write(f"Origin: {species['origin']}")
+        st.write(f"Cultivation affinity: {species['cultivation_affinity']}")
+        st.write(f"Bloodline: {bloodline['name'] if bloodline else 'Unmarked'}")
         st.metric("Health", character["health"])
         st.metric("Wealth", character["wealth"])
         st.progress(character["hunger"] / 100, text=f"Hunger {character['hunger']}%")
@@ -79,27 +86,28 @@ else:
     st.subheader(f"{location['name']} · {date.text()}")
     st.write(location["description"])
     st.caption(f"Season: {date.season} · Weather: {date.weather(engine.seed)} · Terrain: {location['name']}")
-
-    world_state = engine.world_state(world_id)
-    with st.expander("World", expanded=True):
-        st.write(f"**Current era:** {world_state['current_epoch']}")
-        st.write(f"**World condition:** {world_state['world_condition']} · Stability {world_state['stability']}%")
-        st.write(f"**Economy:** {world_state['economic_conditions']} · Spiritual energy: {world_state['spiritual_energy_conditions']}")
-        st.write(f"**Active wars:** {world_state['active_wars']} · Active disasters: {world_state['active_disasters']}")
-        news = engine.world_news(world_id)
-        if news:
-            st.subheader("World news")
-            for item in news[:6]:
-                st.write(f"• {item}")
-        wars = engine.db.all("SELECT * FROM wars WHERE world_id = ? ORDER BY rowid DESC LIMIT 5", (world_id,))
-        if wars:
-            st.subheader("Wars")
-            for war in wars:
-                st.write(f"{war['attacker']} vs {war['defender']} — {war['cause']} ({war['phase']})")
-        planet = engine.db.one("SELECT * FROM planets WHERE world_id = ? LIMIT 1", (world_id,))
-        if planet:
-            st.write(f"**Planet:** {planet['name']} · Type: {planet['planet_type']} · Spiritual density: {planet['spiritual_energy_density']}")
-
+    with st.expander("Economy", expanded=False):
+        local_market = engine.market_for_location(world_id, location["name"])
+        prices = engine.db.all("SELECT good, unit_price, supply, demand FROM market_prices WHERE market_id = ? ORDER BY good", (local_market["market_id"],))
+        st.write(f"**{local_market['name']} market** · Confidence {local_market['confidence']}%")
+        if prices:
+            st.dataframe([dict(price) for price in prices], hide_index=True, use_container_width=True)
+        loans = engine.db.all("SELECT remaining_balance, status, due_day FROM loans WHERE borrower_id = ? ORDER BY rowid DESC", (character["character_id"],))
+        if loans:
+            st.write("**Loans**")
+            st.dataframe([dict(loan) for loan in loans], hide_index=True, use_container_width=True)
+        st.caption("Prices respond to local supply, demand, travel, and world events. You can ignore the market and live normally.")
+    with st.expander("Transport and Communications", expanded=False):
+        journeys = engine.db.all("SELECT origin, destination, transport_type, status, arrival_serial FROM journeys WHERE traveler_id = ? ORDER BY rowid DESC LIMIT 8", (character["character_id"],))
+        if journeys:
+            st.write("**Journeys**")
+            st.dataframe([dict(journey) for journey in journeys], hide_index=True, use_container_width=True)
+        delivered_messages = engine.inbox(character["character_id"])
+        st.write(f"**Inbox:** {len(delivered_messages)} delivered message(s)")
+        routes = engine.db.all("SELECT from_location, to_location, distance, travel_cost, danger FROM routes WHERE world_id = ? ORDER BY distance LIMIT 8", (world_id,))
+        if routes:
+            st.write("**Known routes**")
+            st.dataframe([dict(route) for route in routes], hide_index=True, use_container_width=True)
     st.divider()
     cultivation_state = engine.cultivation_state(character["character_id"])
     with st.expander("Cultivation", expanded=True):
