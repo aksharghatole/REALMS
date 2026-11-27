@@ -88,8 +88,10 @@ else:
         st.write(f"Bloodline: {bloodline['name'] if bloodline else 'Unmarked'}")
         st.metric("Health", character["health"])
         st.metric("Wealth", character["wealth"])
-        st.progress(character["hunger"] / 100, text=f"Hunger {character['hunger']}%")
-        st.progress(character["thirst"] / 100, text=f"Thirst {character['thirst']}%")
+        st.progress(character["hunger"] / 100, text=f"Nourishment {character['hunger']}%")
+        st.progress(character["thirst"] / 100, text=f"Hydration {character['thirst']}%")
+        if character["hunger"] <= 15 or character["thirst"] <= 15:
+            st.warning("Supplies are running low. Eat food or drink water before advancing time.")
         st.progress(1 - character["fatigue"] / 100, text=f"Energy {100 - character['fatigue']}%")
         family = engine.family(character["character_id"])
         if family:
