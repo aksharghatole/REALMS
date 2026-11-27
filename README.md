@@ -1,5 +1,7 @@
 # Eternal Realms
 
+[Run](#run) · [Architecture](#architecture) · [Tests](#tests) · [Roadmap](#roadmap)
+
 Eternal Realms is a persistent, text-based cultivation-world RPG and simulation. The player is one person in a living world: farming, trading, studying, fighting, cultivating, joining factions, or simply surviving are all valid lives. There is no mandatory main quest and no protagonist protection.
 
 ## Run
@@ -61,4 +63,4 @@ pytest -q
 
 ## Roadmap
 
-Next steps are richer relationship simulation, market supply and demand, faction politics, procedural regional expansion, full family and legacy discovery, and optional Ollama/OpenAI adapters. These additions should continue to treat SQLite and deterministic engine rules as the source of truth.# REALMS
+Next steps are richer relationship simulation, market supply and demand, faction politics, procedural regional expansion, full family and legacy discovery, and optional Ollama/OpenAI adapters. These additions should continue to treat SQLite and deterministic engine rules as the source of truth.
