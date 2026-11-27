@@ -24,6 +24,22 @@ st.title("Eternal Realms")
 st.caption("A persistent world that does not wait for its protagonist.")
 
 if st.session_state.character_id is None:
+    living = {row["character_id"]: row for row in engine.living_characters(world_id)}
+    if living:
+        st.header("Continue a life")
+        chosen = st.selectbox(
+            "Existing character",
+            list(living),
+            format_func=lambda cid: (
+                f"{living[cid]['name']} · {living[cid]['profession']} · "
+                f"Age {living[cid]['age']} · {cid[:8]}"
+            ),
+        )
+        if st.button("Resume character", type="primary"):
+            st.session_state.character_id = chosen
+            st.session_state.pop("last_message", None)
+            st.rerun()
+        st.divider()
     st.header("Begin a life")
     with st.form("creation"):
         name = st.text_input("Name", "Wei")
@@ -37,6 +53,13 @@ if st.session_state.character_id is None:
     st.info("There is no main quest. Choose a life and see what the years make of it.")
 else:
     character = engine.character(st.session_state.character_id)
+    if not character["alive"]:
+        st.error(f"{character['name']}'s life has ended. Death is permanent.")
+        if st.button("Return to character selection"):
+            st.session_state.character_id = None
+            st.session_state.pop("last_message", None)
+            st.rerun()
+        st.stop()
     date = engine.date(world_id)
     location = engine.db.one("SELECT name, description FROM locations WHERE location_id = ?", (character["location_id"],))
     with st.sidebar:
@@ -74,14 +97,14 @@ else:
         if st.button("Save", use_container_width=True):
             engine.save(world_id, character["character_id"])
             st.success("World saved.")
-        if st.button("Load latest save", use_container_width=True):
-            loaded = engine.latest_save()
-            if loaded:
-                st.session_state.character_id = loaded[1]
-                st.rerun()
+        if st.button("Return to character selection", use_container_width=True):
+            st.session_state.character_id = None
+            st.session_state.pop("last_message", None)
+            st.rerun()
         if st.button("End this life", use_container_width=True):
             engine.kill_character(character["character_id"], "a dangerous day")
             st.session_state.character_id = None
+            st.session_state.pop("last_message", None)
             st.rerun()
     st.subheader(f"{location['name']} · {date.text()}")
     st.write(location["description"])

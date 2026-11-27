@@ -265,6 +265,17 @@ class GameEngine:
             raise ValueError("Unknown world")
         return GameDate(row["year"], row["month"], row["day"], row["hour"])
 
+    def living_characters(self, world_id: str) -> list[dict]:
+        """List resumable player characters in this world, excluding permanent deaths."""
+        return [
+            dict(row)
+            for row in self.db.all(
+                "SELECT character_id, name, age, species, profession FROM characters "
+                "WHERE world_id = ? AND alive = 1 ORDER BY name COLLATE NOCASE, character_id",
+                (world_id,),
+            )
+        ]
+
     def character(self, character_id: str):
         row = self.db.one("SELECT * FROM characters WHERE character_id = ?", (character_id,))
         if row is None:
