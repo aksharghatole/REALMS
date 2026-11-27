@@ -619,9 +619,29 @@ class GameEngine:
         }
 
     def map_text(self, world_id: str, current_location_id: str) -> str:
-        locations = {row["name"]: row["location_id"] for row in self.db.all("SELECT name, location_id FROM locations WHERE world_id = ?", (world_id,))}
+        """Render the persisted route network, including newly discovered locations."""
+        locations = {row["name"]: row["location_id"] for row in self.db.all(
+            "SELECT name, location_id FROM locations WHERE world_id = ? ORDER BY name", (world_id,)
+        )}
         current = next((name for name, location_id in locations.items() if location_id == current_location_id), "Unknown")
-        lines = ["World map", "", f"                 Cloudstep Sect", "                       |", "Whispering Forest -- Azure Village -- Eastern Market", "                       |", "                 Old Road", "", f"You are here: {current}"]
+        neighbours = {name: [] for name in locations}
+        for route in self.db.all(
+            "SELECT from_location, to_location, distance FROM routes WHERE world_id = ? ORDER BY distance, from_location, to_location", (world_id,)
+        ):
+            origin, destination = route["from_location"], route["to_location"]
+            if origin not in locations or destination not in locations or origin == destination:
+                continue
+            neighbours[origin].append((destination, route["distance"]))
+            neighbours[destination].append((origin, route["distance"]))
+        lines = ["World map", "", f"You are here: {current}", ""]
+        ordered = sorted(locations, key=lambda name: (name != current, name.casefold(), name))
+        for name in ordered:
+            lines.append(f"{'[YOU] ' if name == current else ''}{name}")
+            links = sorted(set(neighbours[name]), key=lambda link: (link[1], link[0]))
+            if not links:
+                lines.append("  No known routes")
+            for destination, distance in links:
+                lines.append(f"  └─ {destination} ({distance} day{'s' if distance != 1 else ''} walking)")
         return "\n".join(lines)
 
     def open_situations(self, character_id: str) -> list:
