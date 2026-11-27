@@ -11,13 +11,14 @@ def game(tmp_path):
     engine.db.connection.close()
 
 
-def test_aging_across_multiple_years_and_new_birth_year(game):
+def test_aging_across_multiple_years_and_new_birth_year(game, monkeypatch):
     engine, world = game
     alive = engine.create_character(world, "Wei", age=20)
     dead = engine.create_character(world, "Lost", age=30)
     engine.kill_character(dead, "test")
     npc = engine.db.one("SELECT npc_id, age FROM npcs WHERE world_id = ?", (world,))
-    # Isolate calendar behavior from economy/transport callbacks.
+    # Isolate calendar behavior from survival and economy/transport callbacks.
+    monkeypatch.setattr(engine.tick, "_advance_survival", lambda *args: None)
     engine.tick.economic_step = None
     engine.tick.transport_step = None
     engine.tick.advance(world, 2 * 360 * 24)
