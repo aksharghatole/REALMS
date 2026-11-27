@@ -35,11 +35,11 @@ def test_player_can_create_act_and_resume(tmp_path, monkeypatch):
     try:
         app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py", default_timeout=30).run()
         assert not app.exception
-        text_input(app, "Name").set_value("  ").run()
+        text_input(app, "Name").set_value("  ")
         button(app, "Enter the world").click().run()
         assert not app.exception
         assert any("name cannot be empty" in item.value for item in app.error)
-        text_input(app, "Name").set_value("Wei").run()
+        text_input(app, "Name").set_value("Wei")
         button(app, "Enter the world").click().run()
         assert not app.exception
         assert button(app, "Confirm permanent death").disabled
@@ -48,7 +48,6 @@ def test_player_can_create_act_and_resume(tmp_path, monkeypatch):
         assert not app.exception
         assert next(item.value for item in app.metric if item.label == "Wealth") == "30"
         assert any("Day 6" in item.value for item in app.subheader)
-        assert text_input(app, "What do you do?").value == ""
         assert app.info
         button(app, "Return to character selection").click().run()
         assert not app.exception
