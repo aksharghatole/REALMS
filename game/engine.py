@@ -439,6 +439,13 @@ class GameEngine:
         world_id = character["world_id"]
         if action.verb == "help":
             return "Try: look, status, inventory, work for 5 days, cultivate for 30 days, travel to Eastern Market, talk, rest, or save."
+        if action.verb == "save":
+            self.save(world_id, character_id)
+            return "World saved."
+        if action.verb == "breakthrough":
+            return self.attempt_breakthrough(character_id)
+        if action.verb in {"travel", "join", "leave", "buy", "sell"} and not action.target.strip():
+            return f"Specify a target for {action.verb}."
         if action.verb == "status":
             return f"{character['name']}, age {character['age']} | {realm_name(character['cultivation'])} | Health {character['health']} | Qi {character['qi']} | Soul {character['soul']} | Wealth {character['wealth']}"
         if action.verb == "inventory":
