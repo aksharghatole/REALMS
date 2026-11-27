@@ -60,6 +60,9 @@ else:
     character = engine.character(st.session_state.character_id)
     if not character["alive"]:
         st.error(f"{character['name']}'s life has ended. Death is permanent.")
+        st.write(f"Age at death: {character['age']}")
+        st.write(f"Date: {character['death_date'] or 'Unknown'}")
+        st.write(f"Cause: {character['death_cause'] or 'Unknown'}")
         if st.button("Return to character selection"):
             st.session_state.character_id = None
             st.session_state.pop("last_message", None)
@@ -122,6 +125,25 @@ else:
     st.caption(f"Season: {date.season} · Weather: {date.weather(engine.seed)} · Terrain: {location['name']}")
     if st.session_state.get("last_message"):
         st.info(st.session_state.last_message)
+    supplies = {row["item"]: row["quantity"] for row in engine.db.all(
+        "SELECT item, quantity FROM inventories WHERE character_id = ? AND quantity > 0 ORDER BY item",
+        (character["character_id"],),
+    )}
+    st.subheader("Daily life")
+    daily = st.columns(3)
+    for column, label, command, disabled in [
+        (daily[0], f"Eat food ({supplies.get('Food', 0)})", "eat", not supplies.get("Food") or character["hunger"] >= 100),
+        (daily[1], f"Drink water ({supplies.get('Water', 0)})", "drink", not supplies.get("Water") or character["thirst"] >= 100),
+        (daily[2], "Rest (8 hours)", "rest", False),
+    ]:
+        if column.button(label, key=f"daily-{command}", disabled=disabled):
+            st.session_state.last_message = engine.perform(character["character_id"], command)
+            st.rerun()
+    with st.expander("Inventory"):
+        if supplies:
+            st.table([{"Item": item, "Quantity": qty} for item, qty in supplies.items()])
+        else:
+            st.caption("Your inventory is empty.")
     with st.form("world-command", clear_on_submit=True):
         command = st.text_input("What do you do?", placeholder="Work for 5 days, cultivate for 30 days, or travel to Eastern Market")
         act = st.form_submit_button("Act", type="primary")
