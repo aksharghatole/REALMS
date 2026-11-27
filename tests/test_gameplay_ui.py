@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
@@ -31,7 +33,7 @@ def test_player_can_create_act_and_resume(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DEFAULT_DB", tmp_path / "ui.db")
     st.cache_resource.clear()
     try:
-        app = AppTest.from_file("app.py", default_timeout=30).run()
+        app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py", default_timeout=30).run()
         assert not app.exception
         text_input(app, "Name").set_value("  ").run()
         button(app, "Enter the world").click().run()
