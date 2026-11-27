@@ -237,6 +237,9 @@ class GameEngine:
         return inherit_traits_for_new_character(parent_a, parent_b, species_name, rng)
 
     def create_character(self, world_id: str, name: str, age: int = 18, species: str = "Human", origin: str = "Azure Village", profession: str = "Farmer", background: str = "Farmer", personality: str = "Steady") -> str:
+        name = name.strip()
+        if not name:
+            raise ValueError("Character name cannot be empty.")
         self.create_species(species, origin=origin)
         location = self.db.one("SELECT location_id FROM locations WHERE world_id = ? AND name = ?", (world_id, origin)) or self.db.one("SELECT location_id FROM locations WHERE world_id = ? LIMIT 1", (world_id,))
         if location is None:

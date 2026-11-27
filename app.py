@@ -48,8 +48,13 @@ if st.session_state.character_id is None:
         profession = st.selectbox("Profession", ["Farmer", "Merchant", "Soldier", "Blacksmith", "Doctor", "Scholar", "Hunter", "Guard", "Alchemist", "Wanderer"])
         submitted = st.form_submit_button("Enter the world")
     if submitted:
-        st.session_state.character_id = engine.create_character(world_id, name, age, species, "Azure Village", profession, profession)
-        st.rerun()
+        try:
+            st.session_state.character_id = engine.create_character(world_id, name, age, species, "Azure Village", profession, profession)
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.session_state.pop("last_message", None)
+            st.rerun()
     st.info("There is no main quest. Choose a life and see what the years make of it.")
 else:
     character = engine.character(st.session_state.character_id)
@@ -101,7 +106,11 @@ else:
             st.session_state.character_id = None
             st.session_state.pop("last_message", None)
             st.rerun()
-        if st.button("End this life", use_container_width=True):
+        with st.expander("End this life permanently"):
+            st.warning("This character will die permanently. Your world will remain.")
+            confirmed = st.checkbox("I understand this cannot be undone", key=f"end-life-{character['character_id']}")
+            end_life = st.button("Confirm permanent death", disabled=not confirmed, use_container_width=True)
+        if end_life:
             engine.kill_character(character["character_id"], "a dangerous day")
             st.session_state.character_id = None
             st.session_state.pop("last_message", None)
@@ -109,6 +118,14 @@ else:
     st.subheader(f"{location['name']} · {date.text()}")
     st.write(location["description"])
     st.caption(f"Season: {date.season} · Weather: {date.weather(engine.seed)} · Terrain: {location['name']}")
+    if st.session_state.get("last_message"):
+        st.info(st.session_state.last_message)
+    with st.form("world-command", clear_on_submit=True):
+        command = st.text_input("What do you do?", placeholder="Work for 5 days, cultivate for 30 days, or travel to Eastern Market")
+        act = st.form_submit_button("Act", type="primary")
+    if act and command.strip():
+        st.session_state.last_message = engine.perform(character["character_id"], command)
+        st.rerun()
     with st.expander("Economy", expanded=False):
         local_market = engine.market_for_location(world_id, location["name"])
         prices = engine.db.all("SELECT good, unit_price, supply, demand FROM market_prices WHERE market_id = ? ORDER BY good", (local_market["market_id"],))
@@ -209,12 +226,6 @@ else:
             st.rerun()
     else:
         st.write("No one nearby is available for conversation.")
-    command = st.text_input("What do you do?", placeholder="Work for 5 days, cultivate for 30 days, or travel to Eastern Market")
-    if st.button("Act", type="primary") and command:
-        st.session_state.last_message = engine.perform(character["character_id"], command)
-    if st.button("Attempt breakthrough"):
-        st.session_state.last_message = engine.attempt_breakthrough(character["character_id"])
-    st.success(st.session_state.get("last_message", "The world is waiting, but it is not waiting only for you."))
     st.subheader("Recent history")
     events = engine.db.all("SELECT text, year, month, day FROM events WHERE world_id = ? ORDER BY rowid DESC LIMIT 8", (world_id,))
     for event in events:
