@@ -163,6 +163,11 @@ else:
             st.dataframe([dict(loan) for loan in loans], hide_index=True, use_container_width=True)
         st.caption("Prices respond to local supply, demand, travel, and world events. You can ignore the market and live normally.")
     with st.expander("Travel and communications", expanded=True):
+        remaining = engine.exploration_remaining(character["character_id"])
+        st.caption(f"Unexplored trails: {remaining} · Exploration takes 6 hours and 12 energy.")
+        if st.button("Explore surroundings", key="explore-local", disabled=remaining == 0 or character["fatigue"] > 88):
+            st.session_state.last_message = engine.perform(character["character_id"], "explore")
+            st.rerun()
         direct_routes = {}
         for route in engine.available_routes(character["character_id"]):
             direct_routes.setdefault(route["destination"], route)

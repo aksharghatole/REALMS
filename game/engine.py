@@ -14,6 +14,7 @@ from game.narrative import action_message
 from game.simulation.world_tick import WorldTick
 from game.simulation.situations import SituationEngine
 from game.world.generator import WorldGenerator
+from game.world.exploration import discover, remaining_discoveries, EXPLORATION_HOURS, EXPLORATION_FATIGUE
 from game.achievements import INITIAL_ACHIEVEMENTS
 from game.ai.conversation import ConversationService
 from game.ai.provider import AIProvider, configured_provider
@@ -312,6 +313,34 @@ class GameEngine:
     def simulate_economy(self, world_id: str, days: int = 1) -> dict:
         return self.economy.simulate(world_id, days)
 
+    def exploration_remaining(self, character_id: str) -> int:
+        character = self.character(character_id)
+        if not character["alive"]:
+            return 0
+        return remaining_discoveries(self.db, character["world_id"], character["location_id"])
+
+    def explore(self, character_id: str) -> str:
+        character = self.character(character_id)
+        if not character["alive"]:
+            return "This life has ended."
+        world_id = character["world_id"]
+        origin = self.db.one("SELECT * FROM locations WHERE world_id = ? AND location_id = ?", (world_id, character["location_id"]))
+        if origin is None or not self.exploration_remaining(character_id):
+            return "No unexplored trails remain here."
+        if character["fatigue"] + EXPLORATION_FATIGUE > 100:
+            return "You are too exhausted to explore. Rest first."
+        self.db.execute("UPDATE characters SET fatigue = MIN(100, fatigue + ?) WHERE character_id = ?", (EXPLORATION_FATIGUE, character_id))
+        self.tick.advance(world_id, EXPLORATION_HOURS)
+        if not self.character(character_id)["alive"]:
+            return "Your life ended during exploration."
+        name = discover(self.db, world_id, origin)
+        if name is None:
+            return "No unexplored trails remain here."
+        message = f"You discover a trail from {origin['name']} to {name}. It is now on the world map."
+        self.log(world_id, character_id, "exploration", message, 3)
+        self.situations.refresh(character_id)
+        return message
+
     def available_routes(self, character_id: str) -> list[dict]:
         """Return direct, bidirectional routes from the character's current location."""
         character = self.character(character_id)
@@ -458,7 +487,9 @@ class GameEngine:
             return "This life has ended. Create another character to continue in this world."
         world_id = character["world_id"]
         if action.verb == "help":
-            return "Try: look, status, inventory, work for 5 days, cultivate for 30 days, travel to Eastern Market, talk, eat, drink, rest, or save."
+            return "Try: look, status, inventory, work for 5 days, cultivate for 30 days, travel to Eastern Market, explore, talk, eat, drink, rest, or save."
+        if action.verb == "explore":
+            return self.explore(character_id)
         if action.verb == "save":
             self.save(world_id, character_id)
             return "World saved."

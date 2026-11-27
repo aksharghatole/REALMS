@@ -20,6 +20,7 @@ def parse_command(text: str) -> Action:
     elif "year" in command:
         duration *= 360
     for verb, aliases in {
+        "explore": ("explore", "scout"),
         "look": ("look", "what do i see", "map"),
         "status": ("status", "character"),
         "inventory": ("inventory", "items"),
