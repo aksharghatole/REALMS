@@ -245,7 +245,7 @@ class GameEngine:
         if location is None:
             raise ValueError("World has no locations")
         character_id = str(uuid.uuid4())
-        self.db.execute("INSERT INTO characters (character_id, world_id, name, age, sex, species, origin, profession, background, personality, location_id, birth_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (character_id, world_id, name, age, "Unknown", species, origin, profession, background, personality, location["location_id"], 1 - age))
+        self.db.execute("INSERT INTO characters (character_id, world_id, name, age, sex, species, origin, profession, background, personality, location_id, birth_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (character_id, world_id, name, age, "Unknown", species, origin, profession, background, personality, location["location_id"], self.date(world_id).year - age))
         self.record_population_change(species, 1, world_id)
         self.cultivation.ensure(character_id)
         self.db.execute("INSERT INTO inventories VALUES (?, 'Food', 5)", (character_id,))
