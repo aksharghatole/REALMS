@@ -593,6 +593,9 @@ class GameEngine:
         elif action.verb in {"buy", "sell"}:
             message = self.trade(character_id, action.verb, action.target)
         date = self.tick.advance(world_id, hours)
+        after = self.character(character_id)
+        if not after["alive"]:
+            return f"Your life ended during the action: {after['death_cause']}."
         if action.verb != "talk":
             if action.verb not in {"buy", "sell", "cultivate"}:
                 message = action_message(action.verb, date) + travel_note
@@ -751,6 +754,7 @@ class GameEngine:
         if character["alive"]:
             date = self.date(character["world_id"])
             self.db.execute("UPDATE characters SET alive = 0, health = 0, death_date = ?, death_cause = ? WHERE character_id = ?", (date.text(), cause, character_id))
+            self.transport.cancel_dead_journeys(character["world_id"])
             self.log(character["world_id"], character_id, "death", f"{character['name']} died by {cause}.", 5)
 
     def save(self, world_id: str, character_id: str | None, name: str = "Autosave") -> str:

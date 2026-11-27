@@ -130,7 +130,15 @@ class TransportEngine:
     def inbox(self, receiver_id: str) -> list[dict]:
         return [dict(row) for row in self.db.all("SELECT * FROM messages WHERE receiver_id = ? AND status = 'DELIVERED' ORDER BY delivery_serial DESC, rowid DESC", (receiver_id,))]
 
+    def cancel_dead_journeys(self, world_id: str) -> None:
+        self.db.execute(
+            "UPDATE journeys SET status = 'CANCELLED' WHERE world_id = ? AND status IN ('PLANNED', 'IN_TRANSIT', 'DELAYED') "
+            "AND traveler_id IN (SELECT character_id FROM characters WHERE world_id = ? AND alive = 0)",
+            (world_id, world_id),
+        )
+
     def step(self, world_id: str, days: int = 1) -> dict:
+        self.cancel_dead_journeys(world_id)
         now = self.serial(world_id)
         self.db.execute("UPDATE infrastructure SET condition = MAX(0, condition - ?) WHERE world_id = ? AND status = 'active'", (max(0, days // 30), world_id))
         arrived = 0
