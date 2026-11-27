@@ -2,6 +2,7 @@ import streamlit as st
 
 from config import DEFAULT_DB, DEFAULT_WORLD_SEED
 from game.engine import GameEngine
+from game.actions import Action
 from game.ai.provider import provider_for_mode
 from game.cultivation.realms import realm_name
 
@@ -69,7 +70,7 @@ else:
             st.rerun()
         st.stop()
     date = engine.date(world_id)
-    location = engine.db.one("SELECT name, description FROM locations WHERE location_id = ?", (character["location_id"],))
+    location = engine.db.one("SELECT name, description, terrain FROM locations WHERE location_id = ?", (character["location_id"],))
     with st.sidebar:
         st.subheader("AI Settings")
         ai_mode = st.selectbox("AI Mode", ["OFF", "AUTO", "OLLAMA", "OPENAI"], index=0, key="ai_mode")
@@ -122,7 +123,7 @@ else:
             st.rerun()
     st.subheader(f"{location['name']} · {date.text()}")
     st.write(location["description"])
-    st.caption(f"Season: {date.season} · Weather: {date.weather(engine.seed)} · Terrain: {location['name']}")
+    st.caption(f"Season: {date.season} · Weather: {date.weather(engine.seed)} · Terrain: {location['terrain']}")
     if st.session_state.get("last_message"):
         st.info(st.session_state.last_message)
     supplies = {row["item"]: row["quantity"] for row in engine.db.all(
@@ -161,7 +162,21 @@ else:
             st.write("**Loans**")
             st.dataframe([dict(loan) for loan in loans], hide_index=True, use_container_width=True)
         st.caption("Prices respond to local supply, demand, travel, and world events. You can ignore the market and live normally.")
-    with st.expander("Transport and Communications", expanded=False):
+    with st.expander("Travel and communications", expanded=True):
+        direct_routes = {}
+        for route in engine.available_routes(character["character_id"]):
+            direct_routes.setdefault(route["destination"], route)
+        if direct_routes:
+            destination = st.selectbox("Destination", list(direct_routes), key=f"travel-destination-{character['character_id']}-{character['location_id']}")
+            route = direct_routes[destination]
+            st.write(f"Walking: {route['distance']} day(s) · {route['travel_cost']} coins · {route['terrain']} · Danger {route['danger']}")
+            if character["wealth"] < route["travel_cost"]:
+                st.caption("You do not have enough coins for this journey.")
+            if st.button("Travel to destination", key="travel-go", disabled=character["wealth"] < route["travel_cost"]):
+                st.session_state.last_message = engine.perform(character["character_id"], Action("travel", destination))
+                st.rerun()
+        else:
+            st.caption("No direct routes are known from this location.")
         journeys = engine.db.all("SELECT origin, destination, transport_type, status, arrival_serial FROM journeys WHERE traveler_id = ? ORDER BY rowid DESC LIMIT 8", (character["character_id"],))
         if journeys:
             st.write("**Journeys**")
@@ -170,7 +185,7 @@ else:
         st.write(f"**Inbox:** {len(delivered_messages)} delivered message(s)")
         routes = engine.db.all("SELECT from_location, to_location, distance, travel_cost, danger FROM routes WHERE world_id = ? ORDER BY distance LIMIT 8", (world_id,))
         if routes:
-            st.write("**Known routes**")
+            st.write("**Regional routes**")
             st.dataframe([dict(route) for route in routes], hide_index=True, use_container_width=True)
     st.divider()
     cultivation_state = engine.cultivation_state(character["character_id"])
