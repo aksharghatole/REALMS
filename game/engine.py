@@ -312,6 +312,23 @@ class GameEngine:
     def simulate_economy(self, world_id: str, days: int = 1) -> dict:
         return self.economy.simulate(world_id, days)
 
+    def available_routes(self, character_id: str) -> list[dict]:
+        """Return direct, bidirectional routes from the character's current location."""
+        character = self.character(character_id)
+        if not character["alive"]:
+            return []
+        origin = self.db.one("SELECT name FROM locations WHERE world_id = ? AND location_id = ?", (character["world_id"], character["location_id"]))
+        if origin is None:
+            return []
+        return [dict(row) for row in self.db.all(
+            "SELECT r.route_id, l.name AS destination, r.distance, r.terrain, r.danger, r.travel_cost "
+            "FROM routes r JOIN locations l ON l.world_id = r.world_id AND l.name = "
+            "CASE WHEN r.from_location = ? THEN r.to_location ELSE r.from_location END "
+            "WHERE r.world_id = ? AND (r.from_location = ? OR r.to_location = ?) AND l.name != ? "
+            "ORDER BY r.distance, l.name, r.travel_cost, r.route_id",
+            (origin["name"], character["world_id"], origin["name"], origin["name"], origin["name"]),
+        )]
+
     def plan_journey(self, traveler_id: str, origin: str, destination: str, transport_type: str = "walking") -> dict:
         return self.transport.plan_journey(traveler_id, origin, destination, transport_type)
 
@@ -519,7 +536,13 @@ class GameEngine:
             self.db.execute("UPDATE characters SET fatigue = MAX(0, fatigue - 25), health = MIN(100, health + 5), morale = MIN(100, morale + 3) WHERE character_id = ?", (character_id,))
         elif action.verb == "travel" and action.target:
             origin = self.db.one("SELECT name FROM locations WHERE location_id = ?", (character["location_id"],))
-            destination = self.db.one("SELECT * FROM locations WHERE world_id = ? AND name LIKE ?", (world_id, f"%{action.target}%"))
+            target = action.target.strip().casefold()
+            candidates = sorted({route["destination"] for route in self.available_routes(character_id)})
+            exact = [name for name in candidates if name.casefold() == target]
+            matches = exact or [name for name in candidates if target in name.casefold()]
+            if len(matches) > 1:
+                return "Several routes match. Choose: " + ", ".join(matches)
+            destination = self.db.one("SELECT * FROM locations WHERE world_id = ? AND name = ?", (world_id, matches[0])) if matches else None
             route = self.db.one("SELECT * FROM routes WHERE world_id = ? AND ((from_location = ? AND to_location = ?) OR (from_location = ? AND to_location = ?))", (world_id, origin["name"], destination["name"] if destination else "", destination["name"] if destination else "", origin["name"])) if origin and destination else None
             if destination is None or route is None:
                 return "You do not know a safe route there."
