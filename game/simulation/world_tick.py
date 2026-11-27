@@ -24,9 +24,12 @@ class WorldTick:
         if days_elapsed:
             self.db.execute("UPDATE characters SET hunger = MAX(0, hunger - ?), thirst = MAX(0, thirst - ?), fatigue = MIN(100, fatigue + ?), health = MAX(0, health - CASE WHEN hunger < 10 OR thirst < 10 THEN 2 ELSE 0 END) WHERE world_id = ? AND alive = 1", (days_elapsed * 5, days_elapsed * 7, days_elapsed * 4, world_id))
             self.db.execute("UPDATE npcs SET hunger = MAX(0, hunger - ?), fatigue = MIN(100, fatigue + ?) WHERE world_id = ? AND alive = 1", (days_elapsed * 5, days_elapsed * 4, world_id))
-            self.db.execute("UPDATE npcs SET routine = CASE WHEN ? BETWEEN 6 AND 11 THEN 'work' WHEN ? BETWEEN 12 AND 17 THEN 'work' WHEN ? BETWEEN 18 AND 21 THEN 'home' ELSE 'sleep' END WHERE world_id = ? AND alive = 1", (current.hour, current.hour, current.hour, world_id))
-        if current.year > old.year:
-            self.db.execute("UPDATE npcs SET age = age + 1 WHERE world_id = ? AND alive = 1", (world_id,))
+        if current != old:
+            self.db.execute("UPDATE npcs SET routine = CASE WHEN ? BETWEEN 6 AND 17 THEN 'work' WHEN ? BETWEEN 18 AND 21 THEN 'home' ELSE 'sleep' END WHERE world_id = ? AND alive = 1", (current.hour, current.hour, world_id))
+        years_elapsed = current.year - old.year
+        if years_elapsed:
+            self.db.execute("UPDATE characters SET age = age + ? WHERE world_id = ? AND alive = 1", (years_elapsed, world_id))
+            self.db.execute("UPDATE npcs SET age = age + ? WHERE world_id = ? AND alive = 1", (years_elapsed, world_id))
         if days_elapsed and self.economic_step is not None:
             self.economic_step(world_id, days_elapsed)
         if days_elapsed and self.transport_step is not None:
