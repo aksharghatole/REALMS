@@ -11,6 +11,8 @@ class Action:
 
 def parse_command(text: str) -> Action:
     command = text.strip().lower()
+    if command in {"breakthrough", "attempt breakthrough"}:
+        return Action("breakthrough")
     duration_match = re.search(r"(\d+)\s*(?:days?|months?|years?)", command)
     duration = int(duration_match.group(1)) if duration_match else 1
     if "month" in command:
