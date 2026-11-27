@@ -248,7 +248,7 @@ class GameEngine:
         self.db.execute("INSERT INTO characters (character_id, world_id, name, age, sex, species, origin, profession, background, personality, location_id, birth_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (character_id, world_id, name, age, "Unknown", species, origin, profession, background, personality, location["location_id"], self.date(world_id).year - age))
         self.record_population_change(species, 1, world_id)
         self.cultivation.ensure(character_id)
-        self.db.execute("INSERT INTO inventories VALUES (?, 'Food', 5)", (character_id,))
+        self.db.executemany("INSERT INTO inventories VALUES (?, ?, 5)", [(character_id, "Food"), (character_id, "Water")])
         first_breath = self.db.one("SELECT achievement_id FROM achievements WHERE code = 'first_breath'")
         if first_breath:
             self.db.execute("INSERT INTO character_achievements VALUES (?, ?, ?)", (character_id, first_breath["achievement_id"], self.date(world_id).text()))
@@ -441,12 +441,28 @@ class GameEngine:
             return "This life has ended. Create another character to continue in this world."
         world_id = character["world_id"]
         if action.verb == "help":
-            return "Try: look, status, inventory, work for 5 days, cultivate for 30 days, travel to Eastern Market, talk, rest, or save."
+            return "Try: look, status, inventory, work for 5 days, cultivate for 30 days, travel to Eastern Market, talk, eat, drink, rest, or save."
         if action.verb == "save":
             self.save(world_id, character_id)
             return "World saved."
         if action.verb == "breakthrough":
             return self.attempt_breakthrough(character_id)
+        if action.verb in {"eat", "drink"}:
+            item, stat = ("Food", "hunger") if action.verb == "eat" else ("Water", "thirst")
+            if action.target and action.target not in ({"food", "rice", "grain"} if item == "Food" else {"water"}):
+                return f"You can only {action.verb} {item.lower()}."
+            if character[stat] >= 100:
+                return "You are already full." if item == "Food" else "You are already hydrated."
+            cursor = self.db.execute("UPDATE inventories SET quantity = quantity - 1 WHERE character_id = ? AND item = ? AND quantity > 0", (character_id, item))
+            if not cursor.rowcount:
+                return f"You have no {item.lower()}. Buy some at the market."
+            # stat is chosen from the fixed whitelist above, never player input.
+            self.db.execute(f"UPDATE characters SET {stat} = MIN(100, {stat} + 35) WHERE character_id = ?", (character_id,))
+            self.tick.advance(world_id, 1)
+            message = "You eat a meal and feel nourished." if item == "Food" else "You drink water and feel refreshed."
+            self.log(world_id, character_id, "personal", message)
+            self.situations.refresh(character_id)
+            return message
         if action.verb in {"travel", "join", "leave", "buy", "sell"} and not action.target.strip():
             return f"Specify a target for {action.verb}."
         if action.verb == "status":
